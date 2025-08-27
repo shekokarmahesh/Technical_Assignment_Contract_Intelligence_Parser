@@ -1,0 +1,149 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7
+    container_name: contract-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: contract_db
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - contract-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Cache & Message Broker
+  redis:
+    image: redis:7-alpine
+    container_name: contract-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - contract-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # FastAPI Application
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: contract-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      MONGO_URI: mongodb://mongodb:27017/contract_db
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-in-production}
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-52428800}
+    volumes:
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+    networks:
+      - contract-network
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Celery Worker for Async Processing
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: contract-celery-worker
+    restart: unless-stopped
+    command: uv run celery
+    environment:
+      MONGO_URI: mongodb://mongodb:27017/contract_db
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-in-production}
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-52428800}
+    volumes:
+      - ./src:/app/src:ro
+    networks:
+      - contract-network
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "celery", "-A", "src.tasks.celery", "inspect", "ping"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+
+  # Celery Flower (Optional - for monitoring)
+  celery-flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: contract-celery-flower
+    restart: unless-stopped
+    command: celery -A src.tasks.celery flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    networks:
+      - contract-network
+    depends_on:
+      - redis
+    profiles:
+      - monitoring
+
+  # MongoDB Express (Optional - for database management)
+  mongo-express:
+    image: mongo-express:1
+    container_name: contract-mongo-express
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://mongodb:27017/
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: ${MONGO_EXPRESS_PASSWORD:-admin123}
+    networks:
+      - contract-network
+    depends_on:
+      - mongodb
+    profiles:
+      - monitoring
+
+volumes:
+  mongodb_data:
+    name: contract_mongodb_data
+  redis_data:
+    name: contract_redis_data
+
+networks:
+  contract-network:
+    name: contract-network
+    driver: bridge
