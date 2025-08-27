@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
     logger.info("Starting Contract Intelligence Parser API")
     try:
         result = mongodb.connect()
-        if result:
+        if result is not None:
             logger.info("Connected to MongoDB successfully")
         else:
             logger.warning("Starting without MongoDB - upload features will be limited")
@@ -49,7 +49,7 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],  # Frontend URLs
+    allow_origins=["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"],  # Frontend URLs
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

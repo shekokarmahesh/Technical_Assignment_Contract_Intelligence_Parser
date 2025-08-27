@@ -1,11 +1,11 @@
 import { useState, useCallback } from "react";
-import { Upload as UploadIcon, FileText, X, CheckCircle } from "lucide-react";
+import { Upload as UploadIcon, FileText, X, CheckCircle, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { useToast } from "@/hooks/use-toast";
+import { useUploadContract } from "@/services/queries";
 
 interface UploadedFile {
   file: File;
@@ -13,13 +13,14 @@ interface UploadedFile {
   progress: number;
   status: 'uploading' | 'completed' | 'error';
   contractId?: string;
+  error?: string;
 }
 
 const Upload = () => {
   const [dragActive, setDragActive] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const uploadMutation = useUploadContract();
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -47,77 +48,94 @@ const Upload = () => {
     }
   };
 
+  const validateFile = (file: File): string | null => {
+    // Validate file type
+    if (file.type !== 'application/pdf') {
+      return "Only PDF files are supported.";
+    }
+
+    // Validate file size (50MB limit)
+    const maxSize = 50 * 1024 * 1024; // 50MB in bytes
+    if (file.size > maxSize) {
+      return "File size must be less than 50MB.";
+    }
+
+    return null;
+  };
+
   const handleFiles = (files: File[]) => {
     files.forEach(file => {
-      // Validate file type
-      if (file.type !== 'application/pdf') {
-        toast({
-          title: "Invalid File Type",
-          description: "Only PDF files are supported.",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Validate file size (50MB limit)
-      const maxSize = 50 * 1024 * 1024; // 50MB in bytes
-      if (file.size > maxSize) {
-        toast({
-          title: "File Too Large", 
-          description: "File size must be less than 50MB.",
-          variant: "destructive"
-        });
-        return;
-      }
-
+      const validationError = validateFile(file);
+      
       const fileId = Math.random().toString(36).substr(2, 9);
       const uploadFile: UploadedFile = {
         file,
         id: fileId,
         progress: 0,
-        status: 'uploading'
+        status: validationError ? 'error' : 'uploading',
+        error: validationError || undefined
       };
 
       setUploadedFiles(prev => [...prev, uploadFile]);
-      simulateUpload(fileId);
+
+      if (!validationError) {
+        // Start actual upload
+        uploadContract(file, fileId);
+      }
     });
   };
 
-  const simulateUpload = (fileId: string) => {
-    const interval = setInterval(() => {
-      setUploadedFiles(prev => 
-        prev.map(file => {
-          if (file.id === fileId) {
-            const newProgress = Math.min(file.progress + Math.random() * 20, 100);
-            
-            if (newProgress >= 100) {
-              clearInterval(interval);
-              const contractId = `CTR-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-              
-              toast({
-                title: "Upload Successful",
-                description: `Contract ${contractId} is now being processed.`
-              });
-
-              // Auto-redirect after 2 seconds
-              setTimeout(() => {
-                navigate(`/contracts/${contractId}`);
-              }, 2000);
-
-              return {
-                ...file,
-                progress: 100,
-                status: 'completed' as const,
-                contractId
-              };
+  const uploadContract = async (file: File, fileId: string) => {
+    try {
+      // Simulate upload progress
+      const progressInterval = setInterval(() => {
+        setUploadedFiles(prev => 
+          prev.map(f => {
+            if (f.id === fileId && f.progress < 90) {
+              return { ...f, progress: f.progress + Math.random() * 20 };
             }
-            
-            return { ...file, progress: newProgress };
+            return f;
+          })
+        );
+      }, 200);
+
+      const result = await uploadMutation.mutateAsync(file);
+
+      clearInterval(progressInterval);
+
+      setUploadedFiles(prev => 
+        prev.map(f => {
+          if (f.id === fileId) {
+            return {
+              ...f,
+              progress: 100,
+              status: 'completed' as const,
+              contractId: result.contract_id
+            };
           }
-          return file;
+          return f;
         })
       );
-    }, 500);
+
+      // Auto-redirect after 2 seconds
+      setTimeout(() => {
+        navigate(`/contracts/${result.contract_id}`);
+      }, 2000);
+
+    } catch (error) {
+      setUploadedFiles(prev => 
+        prev.map(f => {
+          if (f.id === fileId) {
+            return {
+              ...f,
+              status: 'error' as const,
+              error: error instanceof Error ? error.message : 'Upload failed'
+            };
+          }
+          return f;
+        })
+      );
+    }
   };
 
   const removeFile = (fileId: string) => {
@@ -149,32 +167,40 @@ const Upload = () => {
           <Card className="card-elegant mb-8">
             <CardContent className="p-8">
               <div
-                className={`upload-zone ${dragActive ? 'upload-zone-active' : ''} p-12 text-center`}
+                className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
+                  dragActive
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/50 hover:bg-muted/50"
+                }`}
                 onDragEnter={handleDrag}
                 onDragLeave={handleDrag}
                 onDragOver={handleDrag}
                 onDrop={handleDrop}
-                onClick={() => document.getElementById('file-input')?.click()}
               >
-                <UploadIcon className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-xl font-semibold mb-2">
-                  {dragActive ? 'Drop files here' : 'Upload your contracts'}
+                <UploadIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">
+                  Drop your PDF contracts here
                 </h3>
                 <p className="text-muted-foreground mb-4">
-                  Drag and drop PDF files here, or click to browse
+                  or click to browse and select files
                 </p>
-                <div className="text-sm text-muted-foreground">
-                  <p>Supported format: PDF</p>
-                  <p>Maximum file size: 50MB</p>
-                </div>
                 <input
-                  id="file-input"
                   type="file"
                   multiple
                   accept=".pdf"
                   onChange={handleFileInput}
                   className="hidden"
+                  id="file-upload"
                 />
+                <Button asChild>
+                  <label htmlFor="file-upload" className="cursor-pointer">
+                    <UploadIcon className="h-4 w-4 mr-2" />
+                    Select PDF Files
+                  </label>
+                </Button>
+                <p className="text-xs text-muted-foreground mt-4">
+                  Maximum file size: 50MB • Supported format: PDF only
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -187,68 +213,60 @@ const Upload = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {uploadedFiles.map((uploadFile) => (
-                    <div key={uploadFile.id} className="border border-border rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
+                  {uploadedFiles.map((file) => (
+                    <div key={file.id} className="border border-border rounded-lg p-4">
+                      <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
-                          <FileText className="h-5 w-5 text-primary" />
+                          <FileText className="h-8 w-8 text-muted-foreground" />
                           <div>
-                            <p className="font-medium">{uploadFile.file.name}</p>
+                            <p className="font-medium">{file.file.name}</p>
                             <p className="text-sm text-muted-foreground">
-                              {formatFileSize(uploadFile.file.size)}
+                              {formatFileSize(file.file.size)}
                             </p>
                           </div>
                         </div>
+                        
                         <div className="flex items-center space-x-2">
-                          {uploadFile.status === 'completed' && (
-                            <>
-                              <CheckCircle className="h-5 w-5 text-success" />
-                              <span className="text-sm font-medium text-success">
-                                ID: {uploadFile.contractId}
-                              </span>
-                            </>
+                          {file.status === 'completed' && (
+                            <CheckCircle className="h-5 w-5 text-success" />
+                          )}
+                          {file.status === 'error' && (
+                            <AlertCircle className="h-5 w-5 text-destructive" />
                           )}
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => removeFile(uploadFile.id)}
+                            onClick={() => removeFile(file.id)}
                           >
                             <X className="h-4 w-4" />
                           </Button>
                         </div>
                       </div>
                       
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">
-                            {uploadFile.status === 'uploading' && 'Uploading...'}
-                            {uploadFile.status === 'completed' && 'Upload completed'}
-                            {uploadFile.status === 'error' && 'Upload failed'}
-                          </span>
-                          <span className="font-medium">
-                            {Math.round(uploadFile.progress)}%
-                          </span>
+                      {file.status === 'uploading' && (
+                        <div className="mt-2">
+                          <Progress value={file.progress} className="w-full" />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Uploading... {Math.round(file.progress)}%
+                          </p>
                         </div>
-                        <Progress value={uploadFile.progress} className="h-2" />
-                      </div>
+                      )}
                       
-                      {uploadFile.status === 'completed' && uploadFile.contractId && (
-                        <div className="mt-3 p-3 bg-success-light rounded-md">
-                          <p className="text-sm text-success-foreground">
-                            Contract uploaded successfully! 
-                            <Button
-                              asChild
-                              variant="link"
-                              size="sm"
-                              className="p-0 ml-1 h-auto text-success underline"
-                            >
-                              <span
-                                onClick={() => navigate(`/contracts/${uploadFile.contractId}`)}
-                                className="cursor-pointer"
-                              >
-                                View processing status →
-                              </span>
-                            </Button>
+                      {file.status === 'completed' && (
+                        <div className="mt-2">
+                          <p className="text-sm text-success">
+                            Upload completed! Contract ID: {file.contractId}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Redirecting to contract details...
+                          </p>
+                        </div>
+                      )}
+                      
+                      {file.status === 'error' && (
+                        <div className="mt-2">
+                          <p className="text-sm text-destructive">
+                            {file.error || 'Upload failed'}
                           </p>
                         </div>
                       )}
@@ -259,29 +277,29 @@ const Upload = () => {
             </Card>
           )}
 
-          {/* Upload Guidelines */}
+          {/* Upload Tips */}
           <Card className="card-elegant mt-8">
             <CardHeader>
-              <CardTitle>Upload Guidelines</CardTitle>
+              <CardTitle>Upload Tips</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <h4 className="font-semibold mb-2 text-success">✓ Supported Files</h4>
+                  <h4 className="font-medium mb-2">Supported Files</h4>
                   <ul className="text-sm text-muted-foreground space-y-1">
-                    <li>• PDF format only</li>
-                    <li>• Text-based PDFs (not scanned images)</li>
-                    <li>• File size up to 50MB</li>
-                    <li>• Multiple files supported</li>
+                    <li>• PDF documents only</li>
+                    <li>• Maximum size: 50MB per file</li>
+                    <li>• Text-based PDFs work best</li>
+                    <li>• Multiple files can be uploaded</li>
                   </ul>
                 </div>
                 <div>
-                  <h4 className="font-semibold mb-2 text-primary">📋 Best Practices</h4>
+                  <h4 className="font-medium mb-2">Processing Time</h4>
                   <ul className="text-sm text-muted-foreground space-y-1">
-                    <li>• Ensure clear, readable text</li>
-                    <li>• Include complete contract documents</li>
-                    <li>• Remove password protection</li>
-                    <li>• Use descriptive filenames</li>
+                    <li>• Small contracts: ~30 seconds</li>
+                    <li>• Large contracts: ~2-5 minutes</li>
+                    <li>• Processing happens in background</li>
+                    <li>• You'll be notified when complete</li>
                   </ul>
                 </div>
               </div>

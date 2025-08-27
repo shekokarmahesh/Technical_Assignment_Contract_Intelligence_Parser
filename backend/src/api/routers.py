@@ -45,25 +45,33 @@ async def upload_contract(file: UploadFile = File(...)):
         contract_id = generate_contract_id()
         
         # Store contract in database
-        contracts = get_contracts_collection()
-        contract_doc = {
-            "contract_id": contract_id,
-            "filename": file.filename,
-            "file_size": len(file_data),
-            "status": "pending",
-            "progress": 0,
-            "original_file": file_data,
-            "upload_date": get_current_timestamp(),
-            "created_at": get_current_timestamp(),
-            "updated_at": get_current_timestamp()
-        }
-        
-        contracts.insert_one(contract_doc)
-        logger.info(f"Stored contract {contract_id} in database")
+        try:
+            contracts = get_contracts_collection()
+            contract_doc = {
+                "contract_id": contract_id,
+                "filename": file.filename,
+                "file_size": len(file_data),
+                "status": "pending",
+                "progress": 0,
+                "original_file": file_data,
+                "upload_date": get_current_timestamp(),
+                "created_at": get_current_timestamp(),
+                "updated_at": get_current_timestamp()
+            }
+            
+            contracts.insert_one(contract_doc)
+            logger.info(f"Stored contract {contract_id} in database")
+        except Exception as e:
+            logger.error(f"Database error: {str(e)}")
+            raise HTTPException(status_code=503, detail="Database service unavailable")
         
         # Start async processing
-        parse_contract.delay(contract_id)
-        logger.info(f"Started async processing for contract {contract_id}")
+        try:
+            parse_contract.delay(contract_id)
+            logger.info(f"Started async processing for contract {contract_id}")
+        except Exception as e:
+            logger.error(f"Failed to start async processing: {str(e)}")
+            # Continue anyway as contract is stored
         
         return {
             "contract_id": contract_id,
@@ -122,8 +130,8 @@ def get_contract_status(contract_id: str):
     except ContractNotFoundError:
         raise HTTPException(status_code=404, detail=f"Contract {contract_id} not found")
     except Exception as e:
-        logger.error(f"Failed to get status for contract {contract_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve contract status")
+        logger.error(f"Database error getting contract status: {str(e)}")
+        raise HTTPException(status_code=503, detail="Database service unavailable")
 
 
 @router.get("/contracts/{contract_id}", response_model=Dict[str, Any])
@@ -174,8 +182,8 @@ def get_contract_data(contract_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get data for contract {contract_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve contract data")
+        logger.error(f"Database error getting contract data: {str(e)}")
+        raise HTTPException(status_code=503, detail="Database service unavailable")
 
 
 @router.get("/contracts", response_model=Dict[str, Any])
@@ -265,8 +273,8 @@ def list_contracts(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to list contracts: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve contracts list")
+        logger.error(f"Database error listing contracts: {str(e)}")
+        raise HTTPException(status_code=503, detail="Database service unavailable")
 
 
 @router.get("/contracts/{contract_id}/download")
@@ -311,8 +319,8 @@ def download_contract(contract_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to download contract {contract_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to download contract")
+        logger.error(f"Database error downloading contract: {str(e)}")
+        raise HTTPException(status_code=503, detail="Database service unavailable")
 
 
 @router.delete("/contracts/{contract_id}")
@@ -346,8 +354,8 @@ def delete_contract(contract_id: str):
     except ContractNotFoundError:
         raise HTTPException(status_code=404, detail=f"Contract {contract_id} not found")
     except Exception as e:
-        logger.error(f"Failed to delete contract {contract_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to delete contract")
+        logger.error(f"Database error deleting contract: {str(e)}")
+        raise HTTPException(status_code=503, detail="Database service unavailable")
 
 
 @router.get("/health", response_model=Dict[str, str])
@@ -406,5 +414,5 @@ def get_contract_statistics():
         }
         
     except Exception as e:
-        logger.error(f"Failed to get statistics: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve statistics")
+        logger.error(f"Database error getting statistics: {str(e)}")
+        raise HTTPException(status_code=503, detail="Database service unavailable")

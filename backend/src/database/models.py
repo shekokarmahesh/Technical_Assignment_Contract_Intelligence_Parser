@@ -17,7 +17,7 @@ class MongoDB:
         self.client: Optional[MongoClient] = None
         self.db: Optional[Database] = None
         
-    def connect(self) -> Database:
+    def connect(self) -> Optional[Database]:
         """Connect to MongoDB"""
         try:
             self.client = MongoClient(self.uri, serverSelectionTimeoutMS=5000)
@@ -30,6 +30,7 @@ class MongoDB:
             logger.warning(f"MongoDB connection failed: {e}")
             logger.info("Starting without MongoDB - some features will be unavailable")
             # Don't raise exception, allow app to start
+            self.db = None
             return None
             
     def disconnect(self):
@@ -40,8 +41,10 @@ class MongoDB:
     
     def get_collection(self, collection_name: str) -> Collection:
         """Get a collection from the database"""
-        if not self.db:
+        if self.db is None:
             self.connect()
+        if self.db is None:
+            raise Exception("Database not connected")
         return self.db[collection_name]
 
 # Global MongoDB instance
