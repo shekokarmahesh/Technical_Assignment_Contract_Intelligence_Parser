@@ -38,11 +38,11 @@ Available commands:
     command = sys.argv[1]
     
     commands = {
-        "start": ("uvicorn src.main:app --reload --host 0.0.0.0 --port 8000", "Starting FastAPI server..."),
-        "celery": ("celery -A src.tasks.celery worker --loglevel=info", "Starting Celery worker..."),
-        "test": ("pytest tests/ -v --cov=src --cov-report=term-missing", "Running tests..."),
-        "format": ("black src/ tests/", "Formatting code..."),
-        "lint": ("ruff check src/ tests/", "Linting code..."),
+        "start": ("uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000", "Starting FastAPI server..."),
+        "celery": ("uv run celery -A src.tasks.celery worker --loglevel=info", "Starting Celery worker..."),
+        "test": ("uv run pytest tests/ -v --cov=src --cov-report=term-missing", "Running tests..."),
+        "format": ("uv run black src/ tests/", "Formatting code..."),
+        "lint": ("uv run ruff check src/ tests/", "Linting code..."),
         "install": ("uv sync", "Installing dependencies..."),
         "docker": ("docker-compose up --build", "Starting with Docker Compose..."),
     }

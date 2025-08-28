@@ -16,8 +16,8 @@ RUN apt-get update && apt-get install -y \
 # Install UV
 RUN pip install uv
 
-# Copy dependency files
-COPY pyproject.toml uv.lock* ./
+# Copy dependency files and README
+COPY pyproject.toml uv.lock* README.md ./
 
 # Install Python dependencies
 RUN uv sync --frozen
@@ -26,6 +26,9 @@ RUN uv sync --frozen
 COPY src/ ./src/
 COPY tests/ ./tests/
 COPY .env* ./
+
+# Copy scripts
+COPY scripts.py ./
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash app \
@@ -40,4 +43,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/api/v1/health || exit 1
 
 # Default command
-CMD ["uv", "run", "start"]
+CMD ["python", "scripts.py", "start"]

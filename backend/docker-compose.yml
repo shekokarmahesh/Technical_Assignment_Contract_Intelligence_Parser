@@ -76,7 +76,7 @@ services:
       dockerfile: Dockerfile
     container_name: contract-celery-worker
     restart: unless-stopped
-    command: uv run celery
+    command: python scripts.py celery
     environment:
       MONGO_URI: mongodb://mongodb:27017/contract_db
       REDIS_URL: redis://redis:6379/0
