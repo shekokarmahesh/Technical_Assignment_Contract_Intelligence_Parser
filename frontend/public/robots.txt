@@ -1,14 +1,12 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
-
+# Contract Intelligence Platform - Robots.txt
 User-agent: *
 Allow: /
+
+# Security: Disallow access to sensitive paths
+Disallow: /api/
+Disallow: /admin/
+Disallow: /config/
+Disallow: /.env
+
+# Sitemap location
+Sitemap: /sitemap.xml
