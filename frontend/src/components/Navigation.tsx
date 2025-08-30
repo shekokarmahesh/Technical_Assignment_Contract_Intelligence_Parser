@@ -1,6 +1,7 @@
 import { FileText, Upload, BarChart3 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const Navigation = () => {
   const navItems = [
@@ -40,6 +41,7 @@ const Navigation = () => {
         </div>
         
         <div className="flex items-center space-x-4">
+          <ThemeToggle />
           <Button asChild size="sm">
             <NavLink to="/upload">
               <Upload className="h-4 w-4 mr-2" />
