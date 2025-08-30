@@ -1,4 +1,16 @@
-"""Unit tests for core utilities"""
+"""Unit tests for core utilities
+
+This module provides comprehensive testing for core utility functions including:
+
+- Contract scoring algorithms (weighted evaluation system)
+- Gap analysis and missing field identification
+- File validation (type, size, content verification)
+- Unique ID generation and timestamp handling
+- Confidence score calculation for extracted data
+
+Tests cover various scenarios from complete data to edge cases,
+ensuring robust utility function behavior.
+"""
 
 import pytest
 from unittest.mock import patch
@@ -72,6 +84,60 @@ class TestCoreUtils:
         score = calculate_score({})
         
         assert score == 0
+
+    def test_calculate_score_mixed_data_quality(self):
+        """Test score calculation with mixed quality data"""
+        mixed_data = {
+            "parties": [{"name": "Company A", "confidence": 50}],  # Low confidence
+            "financial_details": {
+                "total_value": "$100,000",
+                "currency": "USD",
+                "line_items": [{"description": "Service"}]
+            },
+            "payment_structure": {"terms": "Net 30"},
+            "sla_terms": {},  # Missing SLA
+            "contact_information": {"emails": ["test@company.com"]}
+        }
+        
+        score = calculate_score(mixed_data)
+        
+        # Should get partial score based on available data
+        assert 0 < score < 100
+        assert isinstance(score, int)
+
+    def test_calculate_score_perfect_data(self):
+        """Test score calculation with perfect, complete data"""
+        perfect_data = {
+            "parties": [
+                {"name": "Company A", "role": "Client", "legal_entity": "Inc.", "confidence": 100},
+                {"name": "Company B", "role": "Service Provider", "legal_entity": "LLC", "confidence": 100}
+            ],
+            "financial_details": {
+                "total_value": "$100,000",
+                "currency": "USD",
+                "line_items": [{"description": "Service", "total": "$100,000"}],
+                "tax_information": {"rate": "10%"}
+            },
+            "payment_structure": {
+                "terms": "Net 30",
+                "schedule": "Monthly",
+                "method": "Wire Transfer"
+            },
+            "sla_terms": {
+                "response_time": "4 hours",
+                "uptime_guarantee": "99.9%",
+                "penalties": "5% reduction"
+            },
+            "contact_information": {
+                "billing_contact": "billing@company.com",
+                "technical_contact": "support@company.com"
+            }
+        }
+        
+        score = calculate_score(perfect_data)
+        
+        # Should get maximum score (100) for perfect data
+        assert score == 100
 
     def test_calculate_score_financial_completeness(self):
         """Test financial completeness scoring component"""

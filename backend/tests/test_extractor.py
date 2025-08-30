@@ -1,4 +1,20 @@
-"""Unit tests for contract extraction services"""
+"""Unit tests for contract extraction services
+
+This module provides comprehensive testing for the ContractExtractor class,
+covering all extraction methods including:
+
+- PDF text extraction and parsing
+- Party identification and role determination
+- Financial data extraction (values, currencies, line items)
+- Payment terms and SLA extraction
+- Contact information parsing
+- Account and billing information
+- Revenue classification
+- Confidence scoring mechanisms
+
+Tests use realistic contract text samples and mock PDF processing
+to ensure robust extraction capabilities.
+"""
 
 import pytest
 from unittest.mock import patch, MagicMock
@@ -168,7 +184,6 @@ class TestContractExtractor:
         assert "extraction_method" in metadata
         assert "text_length" in metadata
 
-    @patch.object(ContractExtractor, '_extract_text_from_pdf')
     def test_extract_data_insufficient_text(self, mock_extract_text):
         """Test extraction with insufficient text content"""
         mock_extract_text.return_value = "Short text"
@@ -177,6 +192,35 @@ class TestContractExtractor:
         
         with pytest.raises(ExtractionError):
             self.extractor.extract_data(file_bytes)
+
+    def test_extract_data_empty_text(self, mock_extract_text):
+        """Test extraction with empty text content"""
+        mock_extract_text.return_value = ""
+        
+        file_bytes = b'%PDF-1.4\nTest content\n%%EOF'
+        
+        with pytest.raises(ExtractionError):
+            self.extractor.extract_data(file_bytes)
+
+    def test_extract_data_whitespace_only(self, mock_extract_text):
+        """Test extraction with whitespace-only text content"""
+        mock_extract_text.return_value = "   \n\t  \n  "
+        
+        file_bytes = b'%PDF-1.4\nTest content\n%%EOF'
+        
+        with pytest.raises(ExtractionError):
+            self.extractor.extract_data(file_bytes)
+
+    def test_extract_data_corrupted_pdf(self, mock_extract_text):
+        """Test extraction with corrupted PDF that raises exception during text extraction"""
+        mock_extract_text.side_effect = Exception("PDF parsing failed")
+        
+        file_bytes = b'%PDF-1.4\nCorrupted content\n%%EOF'
+        
+        with pytest.raises(ExtractionError) as exc_info:
+            self.extractor.extract_data(file_bytes)
+        
+        assert "Failed to extract contract data" in str(exc_info.value)
 
     def test_determine_party_role_client(self):
         """Test party role determination - client"""

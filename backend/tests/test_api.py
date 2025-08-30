@@ -1,4 +1,16 @@
-"""Unit tests for API endpoints"""
+"""Unit tests for API endpoints
+
+This module provides comprehensive testing for all FastAPI endpoints including:
+- Contract upload and validation
+- Status tracking and progress monitoring
+- Data retrieval with proper error handling
+- Pagination and filtering functionality
+- File download capabilities
+- Statistics and analytics endpoints
+
+Tests cover both success and failure scenarios with proper mocking of
+database operations and external dependencies.
+"""
 
 import pytest
 from fastapi.testclient import TestClient
