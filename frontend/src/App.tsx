@@ -1,22 +1,25 @@
+// UI components
 import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+// React Query for data fetching
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+// React Router for navigation
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+// Theme provider
 import { ThemeProvider } from "@/components/theme-provider";
+// Page components
 import Dashboard from "./pages/Dashboard";
 import Upload from "./pages/Upload";
 import ContractDetails from "./pages/ContractDetails";
 import NotFound from "./pages/NotFound";
-// #Hii
+// Create React Query client
 const queryClient = new QueryClient();
-
+// Main App component
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider defaultTheme="system" storageKey="contract-intelligence-theme">
       <TooltipProvider>
         <Toaster />
-        <Sonner />
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Dashboard />} />
